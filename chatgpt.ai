@@ -1,0 +1,23 @@
+{
+  "url": "https://api.openai.com/v1/chat/completions",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer {{OPENAI_API_KEY}}"
+  },
+  "body": {
+    "model": "{{MODEL_NAME}}",
+    "messages": "{{MESSAGES_JSON}}",
+    "max_tokens": "{{MAX_TOKENS}}",
+    "temperature": "{{TEMPERATURE}}"
+  },
+  "response": {
+    "type": "json",
+    "path": "choices.0.message.content"
+  },
+  "uncensored": {
+    "enabled": true,
+    "override_prompt": null
+  },
+  "env_required": ["OPENAI_API_KEY"]
+}
