@@ -1,0 +1,24 @@
+{
+  "url": "https://generativelanguage.googleapis.com/v1beta/models/{{MODEL_NAME}}:generateContent?key={{GEMINI_API_KEY}}",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "contents": "{{MESSAGES_JSON}}",
+    "generationConfig": {
+      "temperature": "{{TEMPERATURE}}",
+      "topP": "{{TOP_P}}",
+      "maxOutputTokens": "{{MAX_TOKENS}}"
+    }
+  },
+  "response": {
+    "type": "json",
+    "path": "candidates.0.content.parts.0.text"
+  },
+  "uncensored": {
+    "enabled": true,
+    "override_prompt": null
+  },
+  "env_required": ["GEMINI_API_KEY"]
+}
