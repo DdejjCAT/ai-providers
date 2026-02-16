@@ -1,0 +1,24 @@
+{
+  "url": "https://foundation-models.api.cloud.ru/v1/chat/completions",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer {{CLOUD_API_KEY}}"
+  },
+  "body": {
+    "model": "{{MODEL_NAME}}",
+    "messages": "{{MESSAGES_JSON}}",
+    "max_tokens": "{{MAX_TOKENS}}",
+    "temperature": "{{TEMPERATURE}}",
+    "top_p": "{{TOP_P}}"
+  },
+  "response": {
+    "type": "json",
+    "path": "choices.0.message.content"
+  },
+  "uncensored": {
+    "enabled": true,
+    "override_prompt": null
+  },
+  "env_required": ["CLOUD_API_KEY"]
+}
