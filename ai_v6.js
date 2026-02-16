@@ -9,7 +9,7 @@ const { v4: uuidv4 } = require('uuid');
 // ====== КЭШ ПРОВАЙДЕРОВ ======
 const providerCache = new Map();
 const CACHE_TTL = 5 * 60 * 1000;
-const PROVIDER_REPO = 'https://raw.githubusercontent.com/DdejjCAT/ai-providers/main';
+const PROVIDER_REPO = 'https://raw.githubusercontent.com/DdejjCAT/ai_v6/main';
 
 // ====== ФЛАГИ ======
 const AVAILABLE_FLAGS = {
