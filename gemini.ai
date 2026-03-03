@@ -5,7 +5,15 @@
     "Content-Type": "application/json"
   },
   "body": {
-    "contents": "{{MESSAGES_JSON}}",
+    "contents": [
+      {
+        "parts": [
+          {
+            "text": "{{MESSAGES_JSON}}"
+          }
+        ]
+      }
+    ],
     "generationConfig": {
       "temperature": "{{TEMPERATURE}}",
       "topP": "{{TOP_P}}",
