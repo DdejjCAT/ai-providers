@@ -2,7 +2,7 @@
 const http = require('http');
 const { SocksProxyAgent } = require('socks-proxy-agent');
 
-const PROXY_PORT = 8080;
+const PROXY_PORT = 3434;
 const SOCKS_PROXY = 'socks5://127.0.0.1:1080';
 const agent = new SocksProxyAgent(SOCKS_PROXY);
 
