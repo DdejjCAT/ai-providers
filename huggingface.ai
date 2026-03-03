@@ -1,0 +1,28 @@
+{
+  "url": "https://router.huggingface.co/v1/chat/completions",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer {{HF_API_KEY}}"
+  },
+  "body": {
+    "model": "{{MODEL_NAME}}",
+    "messages": [
+      {
+        "role": "user",
+        "content": "{{MESSAGES_JSON}}"
+      }
+    ],
+    "maxTokens": "{{MAX_TOKENS}}",
+    "temperature": "{{TEMPERATURE}}"
+  },
+  "response": {
+    "type": "json",
+    "path": "choices.0.message.content"
+  },
+  "uncensored": {
+    "enabled": true,
+    "override_prompt": null
+  },
+  "env_required": ["HF_API_KEY"]
+}
