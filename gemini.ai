@@ -1,28 +1,18 @@
 {
-  "url": "https://generativelanguage.googleapis.com/v1beta/models/{{MODEL_NAME}}:generateContent?key={{GEMINI_API_KEY}}",
+  "url": "http://localhost:3434/gemini-proxy",
   "method": "POST",
   "headers": {
     "Content-Type": "application/json"
   },
   "body": {
-    "contents": [
-      {
-        "parts": [
-          {
-            "text": "{{MESSAGES_JSON}}"
-          }
-        ]
-      }
-    ],
-    "generationConfig": {
-      "temperature": "{{TEMPERATURE}}",
-      "topP": "{{TOP_P}}",
-      "maxOutputTokens": "{{MAX_TOKENS}}"
-    }
+    "model": "{{MODEL_NAME}}",
+    "messages": "{{MESSAGES_JSON}}",
+    "maxTokens": "{{MAX_TOKENS}}",
+    "temperature": "{{TEMPERATURE}}"
   },
   "response": {
     "type": "json",
-    "path": "candidates.0.content.parts.0.text"
+    "path": "choices.0.message.content"
   },
   "uncensored": {
     "enabled": true,
