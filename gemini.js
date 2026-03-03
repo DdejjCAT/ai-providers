@@ -4,7 +4,26 @@ const { SocksProxyAgent } = require('socks-proxy-agent');
 
 const PROXY_PORT = 3434;
 const SOCKS_PROXY = 'socks5://127.0.0.1:1080';
-const agent = new SocksProxyAgent(SOCKS_PROXY);
+
+// Создаем агента с явными настройками
+const agent = new SocksProxyAgent({
+  hostname: '127.0.0.1',
+  port: 1080,
+  protocol: 'socks5:',
+  timeout: 10000
+});
+
+// Функция для fetch с принудительным прокси
+async function fetchWithProxy(url, options = {}) {
+  const fetchOptions = {
+    ...options,
+    agent,
+    // Явно указываем использовать прокси для всех протоколов
+    proxy: false // отключаем системный прокси
+  };
+  
+  return fetch(url, fetchOptions);
+}
 
 const server = http.createServer(async (req, res) => {
   // Добавляем CORS заголовки
@@ -63,11 +82,23 @@ const server = http.createServer(async (req, res) => {
           role: msg.role === 'assistant' ? 'model' : 'user'
         }));
 
-        console.log('Sending to Gemini:', JSON.stringify({ contents }, null, 2));
+        console.log('Sending to Gemini via SOCKS5 proxy...');
+        
+        // Проверяем работу прокси отдельно
+        try {
+          const testResponse = await fetchWithProxy('https://api.ipify.org');
+          const testIp = await testResponse.text();
+          console.log('🔌 Proxy test - IP через прокси:', testIp);
+        } catch (e) {
+          console.error('❌ Proxy test failed:', e.message);
+          throw new Error('SOCKS5 proxy not working');
+        }
 
         // Запрос к Gemini через SOCKS5
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
-        const response = await fetch(url, {
+        console.log('Requesting:', url);
+        
+        const response = await fetchWithProxy(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -78,18 +109,17 @@ const server = http.createServer(async (req, res) => {
               topP: 0.95,
               topK: 64
             }
-          }),
-          agent
+          })
         });
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error('Gemini API error:', response.status, errorText);
+          console.error('❌ Gemini API error:', response.status, errorText);
           throw new Error(`Gemini API error: ${response.status} ${errorText}`);
         }
 
         const data = await response.json();
-        console.log('Gemini response:', JSON.stringify(data, null, 2));
+        console.log('✅ Gemini response received');
         
         // Конвертируем ответ в ваш формат
         const geminiText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
@@ -113,7 +143,7 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(result));
       } catch (error) {
-        console.error('Proxy error:', error);
+        console.error('❌ Proxy error:', error);
         res.writeHead(500);
         res.end(JSON.stringify({ 
           error: error.message,
@@ -130,4 +160,5 @@ const server = http.createServer(async (req, res) => {
 server.listen(PROXY_PORT, () => {
   console.log(`✅ Gemini proxy running at http://localhost:${PROXY_PORT}`);
   console.log(`🔌 Using SOCKS5 proxy: ${SOCKS_PROXY}`);
+  console.log('📡 Test proxy with: curl -x socks5://127.0.0.1:1080 https://api.ipify.org');
 });
