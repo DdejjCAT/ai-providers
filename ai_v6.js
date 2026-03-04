@@ -162,13 +162,13 @@ function convertCodeBlocksToFenst4rLinks(text) {
 async function fetchProviderConfig(providerName) {
     const cached = providerCache.get(providerName);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) return cached.config;
-    
+
     const url = `${PROVIDER_REPO}/${providerName}.ai`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Provider not found: ${providerName} (${res.status})`);
     const config = await res.json();
     if (!config.url || !config.response) throw new Error('Invalid provider config');
-    
+
     providerCache.set(providerName, { config, timestamp: Date.now() });
     return config;
 }
@@ -176,17 +176,57 @@ async function fetchProviderConfig(providerName) {
 // ====== ЗАМЕНА ПЕРЕМЕННЫХ (ГЛАВНОЕ ИСПРАВЛЕНИЕ) ======
 function replaceTemplates(obj, vars) {
     if (typeof obj === 'string') {
-        // Заменяем все {{KEY}} на значения из vars
-        return obj.replace(/\{\{(\w+)\}\}/g, (match, key) => {
-            if (vars[key] !== undefined) {
-                return String(vars[key]);
+        // Получаем ВСЕ системные переменные окружения
+        const allEnvVars = { ...process.env };
+
+        // Добавляем переданные переменные (они имеют приоритет)
+        const allVars = { ...allEnvVars, ...vars };
+
+        // Заменяем все возможные форматы переменных:
+        // {{KEY}}, ${KEY}, $KEY, %KEY%, {{ env.KEY }}, {{ process.env.KEY }}
+        let result = obj;
+
+        // Сортируем ключи по длине (от длинных к коротким) чтобы избежать частичных замен
+        const sortedKeys = Object.keys(allVars).sort((a, b) => b.length - a.length);
+
+        for (const key of sortedKeys) {
+            const value = String(allVars[key] || '');
+
+            // Разные форматы шаблонов
+            const patterns = [
+                new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g'),           // {{KEY}}
+                new RegExp(`\\{\\{\\s*env\\.${key}\\s*\\}\\}`, 'g'),    // {{env.KEY}}
+                new RegExp(`\\{\\{\\s*process\\.env\\.${key}\\s*\\}\\}`, 'g'), // {{process.env.KEY}}
+                new RegExp(`\\$\\{${key}\\}`, 'g'),                      // ${KEY}
+                new RegExp(`\\$${key}\\b`, 'g'),                         // $KEY (с границей слова)
+                new RegExp(`%${key}%`, 'g'),                             // %KEY%
+                new RegExp(`__${key}__`, 'g')                            // __KEY__
+            ];
+
+            for (const pattern of patterns) {
+                result = result.replace(pattern, value);
             }
-            return match; // Если не нашли - оставляем как есть
-        });
+        }
+
+        // Специальная обработка для JSON_PATH если она есть
+        if (vars.JSON_PATH) {
+            const jsonPathPatterns = [
+                /\{\{\s*JSON_PATH\s*\}\}/g,
+                /\$\{JSON_PATH\}/g,
+                /%JSON_PATH%/g
+            ];
+            for (const pattern of jsonPathPatterns) {
+                result = result.replace(pattern, vars.JSON_PATH);
+            }
+        }
+
+        return result;
     }
+
     if (Array.isArray(obj)) {
         return obj.map(item => replaceTemplates(item, vars));
     }
+
     if (obj && typeof obj === 'object') {
         const result = {};
         for (const [k, v] of Object.entries(obj)) {
@@ -194,6 +234,7 @@ function replaceTemplates(obj, vars) {
         }
         return result;
     }
+
     return obj;
 }
 
@@ -218,15 +259,24 @@ function getValueByPath(obj, path) {
 // ====== ВЫПОЛНЕНИЕ ЗАПРОСА К ПРОВАЙДЕРУ ======
 async function callProvider(config, messages, flags) {
     // Собираем все переменные
-    const vars = { ...process.env };
-    vars.MODEL_NAME = flags.model;
-    vars.TEMPERATURE = flags.temperature;
-    vars.MAX_TOKENS = flags.max_tokens;
-    vars.TOP_P = flags.top_p;
-    vars.MESSAGES_JSON = JSON.stringify(messages);
-    vars.LAST_USER_MESSAGE = messages.filter(m => m.role === 'user').pop()?.content || '';
-    vars.UUID = uuidv4();
-    vars.SESSION_HASH = Math.random().toString(36).slice(2);
+    const vars = {
+        ...process.env,  // Все системные переменные
+        MODEL_NAME: flags.model,
+        TEMPERATURE: flags.temperature,
+        MAX_TOKENS: flags.max_tokens,
+        TOP_P: flags.top_p,
+        MESSAGES_JSON: JSON.stringify(messages),
+        LAST_USER_MESSAGE: messages.filter(m => m.role === 'user').pop()?.content || '',
+        UUID: uuidv4(),
+        SESSION_HASH: Math.random().toString(36).slice(2)
+    };
+
+    // Логируем доступные переменные (для отладки, можно закомментировать)
+    console.log('Available env vars:', Object.keys(process.env).filter(key =>
+        !key.includes('KEY') && !key.includes('SECRET') && !key.includes('PASS')
+    ));
+
+    console.log('Template vars:', Object.keys(vars));
 
     // Заменяем шаблоны в конфиге
     const preparedConfig = replaceTemplates(config, vars);
@@ -246,6 +296,7 @@ async function callProvider(config, messages, flags) {
     let lastError;
     for (let attempt = 1; attempt <= (flags.un504 ? 10 : 1); attempt++) {
         try {
+            console.log(`Request to: ${preparedConfig.url}`);
             const res = await fetch(preparedConfig.url, options);
             if (!res.ok) {
                 const errText = await res.text().catch(() => '');
@@ -341,43 +392,43 @@ function extractSearchQuery(userMessage) {
 // ====== HANDLER ======
 exports.handler = async function(event) {
     if (event.httpMethod !== 'POST') return { statusCode: 405, body: JSON.stringify({ error: 'POST only' }) };
-    
+
     let body;
     try { body = JSON.parse(event.body || '{}'); } catch { return { statusCode: 400, body: 'Invalid JSON' }; }
-    
+
     const { message = 'Привет', profile = 'friendly', need_search = false, customSystem, flags: inputFlags } = body;
     const flags = processFlags(inputFlags);
-    
+
     if (message.toLowerCase() === 'ping') return { statusCode: 200, body: JSON.stringify({ response: 'pong' }) };
-    
+
     const ip = event.headers["x-forwarded-for"] || event.requestContext?.identity?.sourceIp || "unknown";
     addMessage(ip, "user", message);
     const history = getSession(ip);
-    
+
     const now = new Date();
     const formatted = new Intl.DateTimeFormat('ru-RU', { timeZone: 'Europe/Moscow', year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12: false }).format(now);
-    
+
     let basePrompt = customSystem || profiles[profile] || profiles.friendly;
     if (flags.uncensored) basePrompt = uncensoredPrompt + "\n" + basePrompt;
     if (flags.pixelart) basePrompt += "\n" + pixelArtInstruction;
-    
+
     const systemPrompt = `Дата: ${formatted}. Отвечай по фактам. Источники в конце.\n${basePrompt}`;
     const messages = [{ role: 'system', content: systemPrompt }];
-    
+
     if (need_search) {
         const query = extractSearchQuery(message);
         const results = await searchAllSources(query);
         const summary = results.map(r => `📌 ${r.title}\n${r.snippet}\n${r.link}`).join('\n\n');
         messages.push({ role: 'assistant', content: `Найдено:\n${summary}` });
     }
-    
+
     messages.push({ role: 'user', content: message });
     if (flags.sources) messages.push({ role: 'user', content: 'Добавь источники.' });
-    
+
     try {
         const config = await fetchProviderConfig(flags.provider);
         let answer = await callProvider(config, messages, flags);
-        
+
         answer = Array.isArray(answer) ? answer.join(' ') : String(answer);
         if (flags.code_to_link) answer = convertCodeBlocksToFenst4rLinks(answer);
         if (!flags.raw) {
@@ -385,7 +436,7 @@ exports.handler = async function(event) {
             if (flags.string) answer = answer.replace(/\n+/g, ' ');
             if (flags.clean) answer = cleanEmptyObjects(answer);
         }
-        
+
         return { statusCode: 200, body: JSON.stringify({ response: answer }) };
     } catch (error) {
         console.error('Handler error:', error.message);
