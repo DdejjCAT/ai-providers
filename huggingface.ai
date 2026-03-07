@@ -14,7 +14,7 @@
       }
     ],
     "maxTokens": "{{MAX_TOKENS}}",
-    "temperature": {{TEMPERATURE}}
+    "temperature": "{{TEMPERATURE}}"
   },
   "response": {
     "type": "json",
