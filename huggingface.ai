@@ -7,9 +7,14 @@
   },
   "body": {
     "model": "{{MODEL_NAME}}",
-    "messages": {{MESSAGES_JSON}},
-    "max_tokens": {{MAX_TOKENS}},
-    "temperature": {{TEMPERATURE}}
+    "messages": [
+      {
+        "role": "user",
+        "content": "{{MESSAGES_JSON}}"
+      }
+    ],
+    "maxTokens": "{{MAX_TOKENS}}",
+    "temperature": "{{TEMPERATURE}}"
   },
   "response": {
     "type": "json",
